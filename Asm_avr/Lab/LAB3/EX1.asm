@@ -1,0 +1,80 @@
+.include "m128def.inc"
+
+.DSEG
+.EQU F_CPU = 16000000
+
+.DEF temp = r16
+.DEF toggle = r17
+.DEF RegKEYs = r18
+.DEF RegLEDs = r19
+.DEF RegCnt = r23
+.DEF xRegL = r24
+.DEF xRegH = r25
+	
+.MACRO _delay_ms
+
+	PUSH r23
+	PUSH r24
+	PUSH r25
+	
+	LDI RegCnt, @0 / 10
+	RCALL DELAY_10MS
+	
+	POP r23
+	POP r24
+	POP r25
+.ENDMACRO
+	
+	.CSEG
+	.ORG 0x0000
+	RJMP INIT
+	
+INIT:
+	LDI R16, LOW(RAMEND)
+	OUT SPL, R16
+	LDI R16, HIGH(RAMEND)
+	OUT SPH, R16
+	
+	CLR R16
+	
+	LDI RegKEYs, 0xFD
+	OUT DDRA, RegKEYs
+	
+	LDI RegLEDs, 0xF0
+	OUT DDRD, RegLEDs
+	
+LOOP:
+	IN temp, PINA
+	ANDI temp, 0x02
+	BREQ TOGGLE_RESET
+	
+	CPI toggle, 0
+	BRNE LOOP
+	
+	IN temp, PORTD
+	LDI R18, 0xF0
+	EOR temp, R18
+
+	OUT PORTD, temp
+	LDI toggle, 1
+	
+	_delay_ms(10)
+	RJMP LOOP
+	
+TOGGLE_RESET:
+	CLR toggle
+	RJMP LOOP
+	
+DELAY_10MS:
+	; 1 sec = 10 ms * 100
+	LDI xRegL, LOW(F_CPU / 4000 * 10)
+	LDI xRegH, HIGH(F_CPU / 4000 * 10)
+	
+DELAY_LOOP:
+	SBIW xRegL, 1
+	BRNE DELAY_LOOP
+	
+	DEC RegCnt
+	BRNE DELAY_10MS
+	
+	RET
